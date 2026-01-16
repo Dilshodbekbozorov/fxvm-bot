@@ -66,6 +66,7 @@ Default kalitlar `config.js` ichida:
 - `drop_premium_days`
 - `uc_fx_rate`
 - `web_mine_cooldown_seconds` (web mining uchun cooldown, 0 bo'lsa har bosilganda ishlaydi)
+- `web_mine_amount` (web mining bosishda beriladigan FX miqdori)
 
 ## Eslatma
 

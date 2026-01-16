@@ -5,7 +5,8 @@ const TelegramBot = require("node-telegram-bot-api");
 const config = require("./config");
 const db = require("./db");
 
-const bot = new TelegramBot(config.BOT_TOKEN, { polling: true });
+const USE_WEBHOOK = Boolean(config.WEBHOOK_URL);
+const bot = new TelegramBot(config.BOT_TOKEN, { polling: false });
 
 let botUsername = config.BOT_USERNAME;
 
@@ -184,9 +185,24 @@ async function getCooldownSeconds(source) {
     if (webCooldown !== null && webCooldown !== undefined) {
       return webCooldown;
     }
+    return 0;
   }
   const cooldown = await db.getSettingNumber("mine_cooldown_seconds");
   return cooldown !== null && cooldown !== undefined ? cooldown : 60;
+}
+
+async function getMineAmount(source, user) {
+  if (source === "web") {
+    const webAmount = await db.getSettingNumber("web_mine_amount");
+    if (webAmount !== null && webAmount !== undefined) {
+      return webAmount;
+    }
+    return 1;
+  }
+  const mineAmount = isPremium(user)
+    ? await db.getSettingNumber("premium_mine_amount")
+    : await db.getSettingNumber("mine_amount");
+  return mineAmount || 1;
 }
 
 async function mineForUser(userId, source = "bot") {
@@ -197,7 +213,7 @@ async function mineForUser(userId, source = "bot") {
   const cooldown = await getCooldownSeconds(source);
   const now = Date.now();
   const lastMine = user.last_mine_at || 0;
-  const diffSeconds = Math.floor((now - lastMine) / 1000);
+  const diffSeconds = Math.max(0, Math.floor((now - lastMine) / 1000));
 
   if (diffSeconds < cooldown) {
     return {
@@ -209,10 +225,7 @@ async function mineForUser(userId, source = "bot") {
     };
   }
 
-  const mineAmount = isPremium(user)
-    ? await db.getSettingNumber("premium_mine_amount")
-    : await db.getSettingNumber("mine_amount");
-  const amount = mineAmount || 1;
+  const amount = await getMineAmount(source, user);
 
   await db.updateUserMining(user.id, amount, now);
   const updated = await db.getUserById(user.id);
@@ -717,6 +730,13 @@ function startWebServer() {
     res.json({ ok: true });
   });
 
+  if (USE_WEBHOOK) {
+    app.post("/telegram/webhook", (req, res) => {
+      bot.processUpdate(req.body);
+      res.sendStatus(200);
+    });
+  }
+
   app.post("/api/profile", async (req, res) => {
     const initData = getInitDataFromRequest(req);
     if (!verifyInitData(initData)) {
@@ -731,7 +751,7 @@ function startWebServer() {
     const cooldown = await getCooldownSeconds("web");
     const now = Date.now();
     const lastMine = user.last_mine_at || 0;
-    const diffSeconds = Math.floor((now - lastMine) / 1000);
+    const diffSeconds = Math.max(0, Math.floor((now - lastMine) / 1000));
     const remainingSeconds = Math.max(0, cooldown - diffSeconds);
 
     res.json({
@@ -1251,12 +1271,19 @@ bot.on("message", async (msg) => {
   }
 });
 
-bot.on("polling_error", (err) => {
-  console.error("Polling error:", err.message);
-});
+if (!USE_WEBHOOK) {
+  bot.on("polling_error", (err) => {
+    console.error("Polling error:", err.message);
+  });
+} else {
+  bot.on("webhook_error", (err) => {
+    console.error("Webhook error:", err.message);
+  });
+}
 
 async function bootstrap() {
   await db.initDb();
+  startWebServer();
   try {
     const me = await bot.getMe();
     if (!botUsername) {
@@ -1276,7 +1303,12 @@ async function bootstrap() {
     commands.push({ command: "admin", description: "Admin panel" });
   }
   await bot.setMyCommands(commands);
-  startWebServer();
+  if (USE_WEBHOOK) {
+    await bot.setWebHook(config.WEBHOOK_URL);
+  } else {
+    await bot.deleteWebHook({ drop_pending_updates: false });
+    bot.startPolling();
+  }
   console.log("FX-VM bot ishga tushdi.");
 }
 

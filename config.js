@@ -17,8 +17,11 @@ const ADMIN_IDS = (process.env.ADMIN_IDS || "")
 
 const BOT_USERNAME = process.env.BOT_USERNAME || "";
 const ADMIN_CONTACT = process.env.ADMIN_CONTACT || "";
-const WEBAPP_URL =
-  process.env.WEBAPP_URL || process.env.RENDER_EXTERNAL_URL || "";
+const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL || "";
+const WEBAPP_URL = process.env.WEBAPP_URL || RENDER_EXTERNAL_URL || "";
+const WEBHOOK_URL =
+  process.env.WEBHOOK_URL ||
+  (RENDER_EXTERNAL_URL ? `${RENDER_EXTERNAL_URL}/telegram/webhook` : "");
 const APP_NAME = process.env.APP_NAME || "FX-VM";
 const PG_SSL = ["true", "1", "yes"].includes(
   String(process.env.PG_SSL || "").toLowerCase()
@@ -36,6 +39,7 @@ const DEFAULT_SETTINGS = {
   drop_premium_days: 7,
   uc_fx_rate: 1,
   web_mine_cooldown_seconds: 0,
+  web_mine_amount: 1,
 };
 
 module.exports = {
@@ -45,6 +49,7 @@ module.exports = {
   BOT_USERNAME,
   ADMIN_CONTACT,
   WEBAPP_URL,
+  WEBHOOK_URL,
   APP_NAME,
   PG_SSL,
   DEFAULT_SETTINGS,
