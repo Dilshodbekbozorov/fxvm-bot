@@ -68,7 +68,7 @@ function buildMainMenuKeyboard() {
     ["Pul kiritish/chiqarish", "UC xarid"],
   ];
   if (webAppUrl) {
-    rows.unshift([{ text: "Web Mining", web_app: { url: webAppUrl } }]);
+    rows.unshift([{ text: "Mining", web_app: { url: webAppUrl } }]);
   }
   return {
     reply_markup: {
@@ -755,7 +755,12 @@ async function sendMovieContent(chatId, movie) {
 }
 
 function getInitDataFromRequest(req) {
-  return (req.body && req.body.initData) || req.headers["x-telegram-init-data"] || "";
+  return (
+    (req.body && req.body.initData) ||
+    req.headers["x-telegram-init-data"] ||
+    (req.query && (req.query.initData || req.query.init_data)) ||
+    ""
+  );
 }
 
 function startWebServer() {
@@ -792,7 +797,7 @@ function startWebServer() {
     });
   }
 
-  app.post("/api/profile", async (req, res) => {
+  async function handleProfileRequest(req, res) {
     const initData = getInitDataFromRequest(req);
     if (!verifyInitData(initData)) {
       res.status(401).json({ ok: false, error: "unauthorized" });
@@ -823,9 +828,9 @@ function startWebServer() {
       remainingSeconds,
       lastMineAt: user.last_mine_at,
     });
-  });
+  }
 
-  app.post("/api/mine", async (req, res) => {
+  async function handleMineRequest(req, res) {
     const initData = getInitDataFromRequest(req);
     if (!verifyInitData(initData)) {
       res.status(401).json({ ok: false, error: "unauthorized" });
@@ -854,7 +859,12 @@ function startWebServer() {
       cooldownSeconds: result.cooldownSeconds || 0,
       premium: result.premium || false,
     });
-  });
+  }
+
+  app.post("/api/profile", handleProfileRequest);
+  app.get("/api/profile", handleProfileRequest);
+  app.post("/api/mine", handleMineRequest);
+  app.get("/api/mine", handleMineRequest);
 
   const port = process.env.PORT || 3000;
   app.listen(port, () => {
@@ -1280,9 +1290,6 @@ bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
 
   switch (text) {
-    case "Mining":
-      await handleMining(chatId, user);
-      break;
     case "Profil":
       await sendProfile(chatId, user);
       break;

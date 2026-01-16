@@ -63,7 +63,7 @@ function showGain(amount) {
 }
 
 async function callApi(path) {
-  try {
+  const postRequest = async () => {
     const response = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: {
@@ -73,8 +73,23 @@ async function callApi(path) {
       body: JSON.stringify({ initData }),
     });
     return await response.json();
+  };
+
+  const getRequest = async () => {
+    const url = new URL(`${API_BASE}${path}`);
+    url.searchParams.set("initData", initData);
+    const response = await fetch(url.toString());
+    return await response.json();
+  };
+
+  try {
+    return await postRequest();
   } catch (err) {
-    return { ok: false, error: "network" };
+    try {
+      return await getRequest();
+    } catch (err2) {
+      return { ok: false, error: "network" };
+    }
   }
 }
 
