@@ -18,6 +18,7 @@ Node.js va node-telegram-bot-api asosida Telegram bot. FX token mining, referral
 - `PG_SSL` - `true` bo'lsa SSL yoqiladi (Render tashqi ulanishlar uchun tavsiya)
 - `WEBAPP_URL` - Web mining uchun to'liq URL (masalan: Render servis URL). Render web servisida `RENDER_EXTERNAL_URL` avtomatik ishlatiladi.
 - `WEBHOOK_URL` - ixtiyoriy. Telegram webhook URL. Render web servisida `RENDER_EXTERNAL_URL/telegram/webhook` avtomatik ishlatiladi.
+  Agar `WEBHOOK_URL` faqat domen bo'lsa, bot `/telegram/webhook` ga avtomatik o'zgartiradi.
 
 ## Asosiy funksiyalar
 

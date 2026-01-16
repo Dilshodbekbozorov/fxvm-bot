@@ -5,14 +5,30 @@ const TelegramBot = require("node-telegram-bot-api");
 const config = require("./config");
 const db = require("./db");
 
-const USE_WEBHOOK = Boolean(config.WEBHOOK_URL);
+function normalizeWebhookUrl(rawUrl) {
+  if (!rawUrl) {
+    return "";
+  }
+  try {
+    const url = new URL(rawUrl);
+    if (!url.pathname || url.pathname === "/") {
+      url.pathname = "/telegram/webhook";
+    }
+    return url.toString();
+  } catch (err) {
+    return rawUrl;
+  }
+}
+
+const WEBHOOK_URL = normalizeWebhookUrl(config.WEBHOOK_URL);
+const USE_WEBHOOK = Boolean(WEBHOOK_URL);
 const bot = new TelegramBot(config.BOT_TOKEN, { polling: false });
 
 let botUsername = config.BOT_USERNAME;
 
 function getBackendBaseUrl() {
-  if (config.WEBHOOK_URL) {
-    const webhook = config.WEBHOOK_URL.replace(/\/$/, "");
+  if (WEBHOOK_URL) {
+    const webhook = WEBHOOK_URL.replace(/\/$/, "");
     if (webhook.endsWith("/telegram/webhook")) {
       return webhook.replace(/\/telegram\/webhook$/, "");
     }
@@ -765,9 +781,14 @@ function startWebServer() {
   });
 
   if (USE_WEBHOOK) {
-    app.post("/telegram/webhook", (req, res) => {
+    const webhookHandler = (req, res) => {
       bot.processUpdate(req.body);
       res.sendStatus(200);
+    };
+    app.post("/", webhookHandler);
+    app.post("/webhook", webhookHandler);
+    app.post("/telegram/webhook", (req, res) => {
+      webhookHandler(req, res);
     });
   }
 
@@ -1339,7 +1360,7 @@ async function bootstrap() {
   }
   await bot.setMyCommands(commands);
   if (USE_WEBHOOK) {
-    await bot.setWebHook(config.WEBHOOK_URL);
+    await bot.setWebHook(WEBHOOK_URL);
   } else {
     await bot.deleteWebHook({ drop_pending_updates: false });
     bot.startPolling();
