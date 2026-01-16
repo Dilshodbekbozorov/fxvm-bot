@@ -84,6 +84,7 @@ Default kalitlar `config.js` ichida:
 - BotFather orqali Web App domainini `WEBAPP_URL` domeniga ruxsat bering.
 - Agar web sahifa alohida host (Netlify) bo'lsa, `WEBAPP_URL` ga `?api=BACKEND_URL` qo'shing.
   Masalan: `https://fxvm.netlify.app/?api=https://fxvm-bot.onrender.com`
+- Render'da `RENDER_EXTERNAL_URL` mavjud bo'lsa, `?api=` avtomatik qo'shiladi.
 
 ## Render deploy
 

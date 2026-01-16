@@ -10,15 +10,49 @@ const bot = new TelegramBot(config.BOT_TOKEN, { polling: false });
 
 let botUsername = config.BOT_USERNAME;
 
+function getBackendBaseUrl() {
+  if (config.WEBHOOK_URL) {
+    const webhook = config.WEBHOOK_URL.replace(/\/$/, "");
+    if (webhook.endsWith("/telegram/webhook")) {
+      return webhook.replace(/\/telegram\/webhook$/, "");
+    }
+    return webhook;
+  }
+  if (process.env.RENDER_EXTERNAL_URL) {
+    return process.env.RENDER_EXTERNAL_URL.replace(/\/$/, "");
+  }
+  return "";
+}
+
+function getWebAppUrl() {
+  if (!config.WEBAPP_URL) {
+    return "";
+  }
+  const backendBase = getBackendBaseUrl();
+  if (!backendBase) {
+    return config.WEBAPP_URL;
+  }
+  try {
+    const url = new URL(config.WEBAPP_URL);
+    if (!url.searchParams.get("api")) {
+      url.searchParams.set("api", backendBase);
+    }
+    return url.toString();
+  } catch (err) {
+    return config.WEBAPP_URL;
+  }
+}
+
 function buildMainMenuKeyboard() {
+  const webAppUrl = getWebAppUrl();
   const rows = [
     ["Mining", "Profil"],
     ["Referral", "Premium"],
     ["Kino kodi", "Reyting"],
     ["Pul kiritish/chiqarish", "UC xarid"],
   ];
-  if (config.WEBAPP_URL) {
-    rows.unshift([{ text: "Web Mining", web_app: { url: config.WEBAPP_URL } }]);
+  if (webAppUrl) {
+    rows.unshift([{ text: "Web Mining", web_app: { url: webAppUrl } }]);
   }
   return {
     reply_markup: {
@@ -913,7 +947,8 @@ bot.onText(/\/help/, async (msg) => {
 });
 
 bot.onText(/\/web/, async (msg) => {
-  if (!config.WEBAPP_URL) {
+  const webAppUrl = getWebAppUrl();
+  if (!webAppUrl) {
     await bot.sendMessage(
       msg.chat.id,
       "Web mining sozlanmagan. Admin bilan bog'laning.",
@@ -924,7 +959,7 @@ bot.onText(/\/web/, async (msg) => {
   await bot.sendMessage(msg.chat.id, "Web mining:", {
     reply_markup: {
       inline_keyboard: [
-        [{ text: "Open Web Mining", web_app: { url: config.WEBAPP_URL } }],
+        [{ text: "Open Web Mining", web_app: { url: webAppUrl } }],
       ],
     },
   });
