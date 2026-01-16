@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FX-VM Mining</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="bg-orb bg-orb-one"></div>
+    <div class="bg-orb bg-orb-two"></div>
+
+    <main class="app">
+      <header class="top">
+        <div class="brand">FX-VM</div>
+        <div class="user" id="userName">Guest</div>
+      </header>
+
+      <section class="stats">
+        <div class="label">Balance</div>
+        <div class="value" id="balance">0</div>
+        <div class="tier" id="tier">Silver</div>
+      </section>
+
+      <button class="coin" id="coinButton" type="button" aria-label="Mine FX">
+        <span class="coin-inner">
+          <span class="coin-mark">FX</span>
+        </span>
+      </button>
+
+      <div class="status" id="status">Tap the coin to mine</div>
+      <div class="cooldown" id="cooldown"></div>
+      <div class="hint" id="hint">Premium gives 2x mining</div>
+
+      <footer class="tabs">
+        <button class="tab active" type="button">Mining</button>
+        <button class="tab" type="button">Friends</button>
+        <button class="tab" type="button">Boosts</button>
+      </footer>
+    </main>
+
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
