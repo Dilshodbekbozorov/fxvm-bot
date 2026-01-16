@@ -17,6 +17,7 @@ Node.js va node-telegram-bot-api asosida Telegram bot. FX token mining, referral
 - `DATABASE_URL` - PostgreSQL connection string
 - `PG_SSL` - `true` bo'lsa SSL yoqiladi (Render tashqi ulanishlar uchun tavsiya)
 - `WEBAPP_URL` - Web mining uchun to'liq URL (masalan: Render servis URL). Render web servisida `RENDER_EXTERNAL_URL` avtomatik ishlatiladi.
+- `WEBHOOK_URL` - ixtiyoriy. Telegram webhook URL. Render web servisida `RENDER_EXTERNAL_URL/telegram/webhook` avtomatik ishlatiladi.
 
 ## Asosiy funksiyalar
 
@@ -64,6 +65,7 @@ Default kalitlar `config.js` ichida:
 - `drop_bonus_fx`
 - `drop_premium_days`
 - `uc_fx_rate`
+- `web_mine_cooldown_seconds` (web mining uchun cooldown, 0 bo'lsa har bosilganda ishlaydi)
 
 ## Eslatma
 
@@ -79,6 +81,8 @@ Default kalitlar `config.js` ichida:
 - Bot menyusida "Web Mining" tugmasi chiqishi uchun `WEBAPP_URL` ni sozlang.
 - Telegram Web App auth tekshiruvi bor, shuning uchun web sahifani faqat bot ichidan ochish tavsiya qilinadi.
 - BotFather orqali Web App domainini `WEBAPP_URL` domeniga ruxsat bering.
+- Agar web sahifa alohida host (Netlify) bo'lsa, `WEBAPP_URL` ga `?api=BACKEND_URL` qo'shing.
+  Masalan: `https://fxvm.netlify.app/?api=https://fxvm-bot.onrender.com`
 
 ## Render deploy
 

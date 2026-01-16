@@ -35,6 +35,7 @@ const DEFAULT_SETTINGS = {
   drop_bonus_fx: 500,
   drop_premium_days: 7,
   uc_fx_rate: 1,
+  web_mine_cooldown_seconds: 0,
 };
 
 module.exports = {

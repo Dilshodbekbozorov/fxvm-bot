@@ -10,6 +10,9 @@ const coinButton = document.getElementById("coinButton");
 const tg = window.Telegram ? window.Telegram.WebApp : null;
 const initData = tg ? tg.initData : "";
 const initDataUnsafe = tg ? tg.initDataUnsafe : null;
+const urlParams = new URLSearchParams(window.location.search);
+const apiParam = urlParams.get("api");
+const API_BASE = (apiParam || window.location.origin).replace(/\/$/, "");
 
 let cooldownTimer = null;
 let remainingSeconds = 0;
@@ -61,7 +64,7 @@ function showGain(amount) {
 
 async function callApi(path) {
   try {
-    const response = await fetch(path, {
+    const response = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -79,6 +82,9 @@ async function loadProfile() {
   if (!initData) {
     setStatus("Open this page from the Telegram bot.", true);
     return;
+  }
+  if (apiParam) {
+    setStatus("Connected to FX-VM backend");
   }
   const data = await callApi("/api/profile");
   if (!data.ok) {
