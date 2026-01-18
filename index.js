@@ -62,10 +62,10 @@ function getWebAppUrl() {
 function buildMainMenuKeyboard() {
   const webAppUrl = getWebAppUrl();
   const rows = [
-    ["Mining", "Profil"],
+    ["UC xarid", "Profil"],
     ["Referral", "Premium"],
     ["Kino kodi", "Reyting"],
-    ["Pul kiritish/chiqarish", "UC xarid"],
+    ["Pul kiritish/chiqarish"],
   ];
   if (webAppUrl) {
     rows.unshift([{ text: "Mining", web_app: { url: webAppUrl } }]);
@@ -245,7 +245,7 @@ async function getMineAmount(source, user) {
   if (source === "web") {
     const webAmount = await db.getSettingNumber("web_mine_amount");
     if (webAmount !== null && webAmount !== undefined) {
-      return webAmount;
+      return Math.max(1, webAmount);
     }
     return 1;
   }
@@ -683,7 +683,7 @@ async function handleStateMessage(msg, user) {
       return true;
     }
     case "movie_code": {
-      const code = text.trim();
+      const code = extractMovieCodeFromText(text) || text.trim();
       const movie = await db.getMovieCode(code);
       await db.clearUserState(user.id);
       if (!movie) {
@@ -798,67 +798,77 @@ function startWebServer() {
   }
 
   async function handleProfileRequest(req, res) {
-    const initData = getInitDataFromRequest(req);
-    if (!verifyInitData(initData)) {
-      res.status(401).json({ ok: false, error: "unauthorized" });
-      return;
-    }
-    const user = await getUserFromInitData(initData);
-    if (!user) {
-      res.status(400).json({ ok: false, error: "user_missing" });
-      return;
-    }
-    const cooldown = await getCooldownSeconds("web");
-    const now = Date.now();
-    const lastMine = user.last_mine_at || 0;
-    const diffSeconds = Math.max(0, Math.floor((now - lastMine) / 1000));
-    const remainingSeconds = Math.max(0, cooldown - diffSeconds);
+    try {
+      const initData = getInitDataFromRequest(req);
+      if (!verifyInitData(initData)) {
+        res.status(401).json({ ok: false, error: "unauthorized" });
+        return;
+      }
+      const user = await getUserFromInitData(initData);
+      if (!user) {
+        res.status(400).json({ ok: false, error: "user_missing" });
+        return;
+      }
+      const cooldown = await getCooldownSeconds("web");
+      const now = Date.now();
+      const lastMine = user.last_mine_at || 0;
+      const diffSeconds = Math.max(0, Math.floor((now - lastMine) / 1000));
+      const remainingSeconds = Math.max(0, cooldown - diffSeconds);
 
-    res.json({
-      ok: true,
-      user: {
-        id: user.id,
-        username: user.username || null,
-        first_name: user.first_name || null,
-        last_name: user.last_name || null,
-      },
-      balance: user.fx_balance,
-      premium: isPremium(user),
-      cooldownSeconds: cooldown,
-      remainingSeconds,
-      lastMineAt: user.last_mine_at,
-    });
+      res.json({
+        ok: true,
+        user: {
+          id: user.id,
+          username: user.username || null,
+          first_name: user.first_name || null,
+          last_name: user.last_name || null,
+        },
+        balance: user.fx_balance,
+        premium: isPremium(user),
+        cooldownSeconds: cooldown,
+        remainingSeconds,
+        lastMineAt: user.last_mine_at,
+      });
+    } catch (err) {
+      console.error("Profile API error:", err);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
   }
 
   async function handleMineRequest(req, res) {
-    const initData = getInitDataFromRequest(req);
-    if (!verifyInitData(initData)) {
-      res.status(401).json({ ok: false, error: "unauthorized" });
-      return;
-    }
-    const user = await getUserFromInitData(initData);
-    if (!user) {
-      res.status(400).json({ ok: false, error: "user_missing" });
-      return;
-    }
-    const result = await mineForUser(user.id, "web");
-    if (!result.ok) {
+    try {
+      const initData = getInitDataFromRequest(req);
+      if (!verifyInitData(initData)) {
+        res.status(401).json({ ok: false, error: "unauthorized" });
+        return;
+      }
+      const user = await getUserFromInitData(initData);
+      if (!user) {
+        res.status(400).json({ ok: false, error: "user_missing" });
+        return;
+      }
+      const result = await mineForUser(user.id, "web");
+      if (!result.ok) {
+        res.json({
+          ok: false,
+          remainingSeconds: result.remainingSeconds || 0,
+          cooldownSeconds: result.cooldownSeconds || 0,
+          balance: result.balance || user.fx_balance,
+          premium: result.premium || false,
+        });
+        return;
+      }
       res.json({
-        ok: false,
-        remainingSeconds: result.remainingSeconds || 0,
+        ok: true,
+        mined: result.amount,
+        balance: result.balance,
         cooldownSeconds: result.cooldownSeconds || 0,
-        balance: result.balance || user.fx_balance,
         premium: result.premium || false,
       });
-      return;
+    } catch (err) {
+      console.error("Mine API error:", err);
+      res.status(500).json({ ok: false, error: "server_error" });
     }
-    res.json({
-      ok: true,
-      mined: result.amount,
-      balance: result.balance,
-      cooldownSeconds: result.cooldownSeconds || 0,
-      premium: result.premium || false,
-    });
   }
 
   app.post("/api/profile", handleProfileRequest);
@@ -947,6 +957,30 @@ function extractMovieContentFromReply(reply) {
     return { type: "text", value: reply.text };
   }
   return null;
+}
+
+function extractMovieCodeFromText(text) {
+  if (!text) {
+    return null;
+  }
+  const match = text.match(/\b(kodi|kod)\s*[:#-]?\s*([0-9]{1,10})\b/i);
+  return match ? match[2] : null;
+}
+
+async function syncMovieFromChannelPost(msg) {
+  const text = msg.caption || msg.text || "";
+  const code = extractMovieCodeFromText(text);
+  if (!code) {
+    return;
+  }
+  await db.addMovieCode({
+    code,
+    content_type: "channel",
+    content_value: "channel",
+    channel_id: msg.chat.id,
+    channel_message_id: msg.message_id,
+    added_by: null,
+  });
 }
 
 bot.onText(/\/start(?:\s+(\S+))?/, async (msg, match) => {
@@ -1160,6 +1194,11 @@ bot.onText(/\/addmovie(?:\s+(\S+))?(?:\s+([\s\S]+))?/, async (msg, match) => {
     return;
   }
 
+  if (!code && msg.reply_to_message) {
+    const caption = msg.reply_to_message.caption || msg.reply_to_message.text;
+    code = extractMovieCodeFromText(caption || "") || "";
+  }
+
   if (!code) {
     code = await db.getNextMovieCode();
   }
@@ -1270,6 +1309,22 @@ bot.onText(/\/stats/, async (msg) => {
     `Pending UC: ${pendingUc.length}`,
   ].join("\n");
   await bot.sendMessage(msg.chat.id, text);
+});
+
+bot.on("channel_post", async (msg) => {
+  try {
+    await syncMovieFromChannelPost(msg);
+  } catch (err) {
+    console.error("Channel post sync error:", err);
+  }
+});
+
+bot.on("edited_channel_post", async (msg) => {
+  try {
+    await syncMovieFromChannelPost(msg);
+  } catch (err) {
+    console.error("Edited channel post sync error:", err);
+  }
 });
 
 bot.on("message", async (msg) => {

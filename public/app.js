@@ -12,7 +12,26 @@ const initData = tg ? tg.initData : "";
 const initDataUnsafe = tg ? tg.initDataUnsafe : null;
 const urlParams = new URLSearchParams(window.location.search);
 const apiParam = urlParams.get("api");
-const API_BASE = (apiParam || window.location.origin).replace(/\/$/, "");
+
+function normalizeApiBase(value) {
+  if (!value) {
+    return "";
+  }
+  let base = String(value).trim();
+  base = base.replace(/\/+$/, "");
+  if (base.endsWith("/telegram/webhook")) {
+    base = base.replace(/\/telegram\/webhook$/, "");
+  } else if (base.endsWith("/webhook")) {
+    base = base.replace(/\/webhook$/, "");
+  }
+  if (!/^https?:\/\//i.test(base) && base.includes(".")) {
+    base = `https://${base}`;
+  }
+  return base;
+}
+
+const API_BASE =
+  normalizeApiBase(apiParam) || normalizeApiBase(window.location.origin);
 
 let cooldownTimer = null;
 let remainingSeconds = 0;
@@ -62,7 +81,40 @@ function showGain(amount) {
   setTimeout(() => gain.remove(), 1100);
 }
 
+function getErrorMessage(error, fallback) {
+  switch (error) {
+    case "network":
+      return "Network error. Try again.";
+    case "bad_response":
+    case "empty_response":
+      return "API error. Check backend URL.";
+    case "server_error":
+      return "Server error. Try again.";
+    case "unauthorized":
+      return "Auth failed. Re-open from Telegram.";
+    case "api_missing":
+      return "API URL missing. Open from bot link.";
+    default:
+      return fallback;
+  }
+}
+
+async function readJson(response) {
+  const text = await response.text();
+  if (!text) {
+    return { ok: false, error: "empty_response", status: response.status };
+  }
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    return { ok: false, error: "bad_response", status: response.status };
+  }
+}
+
 async function callApi(path) {
+  if (!API_BASE) {
+    return { ok: false, error: "api_missing" };
+  }
   const postRequest = async () => {
     const response = await fetch(`${API_BASE}${path}`, {
       method: "POST",
@@ -72,14 +124,14 @@ async function callApi(path) {
       },
       body: JSON.stringify({ initData }),
     });
-    return await response.json();
+    return await readJson(response);
   };
 
   const getRequest = async () => {
     const url = new URL(`${API_BASE}${path}`);
     url.searchParams.set("initData", initData);
     const response = await fetch(url.toString());
-    return await response.json();
+    return await readJson(response);
   };
 
   try {
@@ -104,9 +156,7 @@ async function loadProfile() {
   const data = await callApi("/api/profile");
   if (!data.ok) {
     setStatus(
-      data.error === "network"
-        ? "Network error. Check connection."
-        : "Auth failed. Re-open from Telegram.",
+      getErrorMessage(data.error, "Auth failed. Re-open from Telegram."),
       true
     );
     return;
@@ -129,14 +179,14 @@ async function mine() {
   if (pending) {
     return;
   }
+  if (!initData) {
+    setStatus("Open this page from the Telegram bot.", true);
+    return;
+  }
   pending = true;
   const data = await callApi("/api/mine");
   if (!data.ok) {
-    if (data.error === "network") {
-      setStatus("Network error. Try again.", true);
-    } else {
-      setStatus("Cooldown active");
-    }
+    setStatus(getErrorMessage(data.error, "Cooldown active"), true);
     setCooldown(data.remainingSeconds || 0);
   } else {
     balanceEl.textContent = formatNumber(data.balance);
