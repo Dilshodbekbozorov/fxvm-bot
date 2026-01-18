@@ -14,6 +14,8 @@ services:
         sync: false
       - key: ADMIN_CONTACT
         sync: false
+      - key: CHANNEL_ID
+        sync: false
       - key: WEBAPP_URL
         sync: false
       - key: PG_SSL

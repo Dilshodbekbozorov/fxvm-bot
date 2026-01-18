@@ -1,105 +1,53 @@
-# FX-VM Telegram Bot
+# FX Movie Code Bot
 
-Node.js va node-telegram-bot-api asosida Telegram bot. FX token mining, referral, premium, UC so'rovlar va kodli kino funksiyalarini taqdim etadi. Ma'lumotlar bazasi PostgreSQL.
+Private Telegram channel movie index. The bot reads new channel posts, extracts code from caption, saves it to DB, and lets users request a movie by sending the code.
 
-## Tez start
+## Setup
 
-1. `npm install`
-2. `.env.example` faylini `.env` qilib ko'chiring va sozlang.
-3. `npm start`
-
-## Muhim sozlamalar
-
-- `BOT_TOKEN` - Telegram bot tokeni
-- `ADMIN_IDS` - admin Telegram ID'lar, vergul bilan ajratilgan
-- `BOT_USERNAME` - bot username (majburiy emas, referral link uchun qulay)
-- `ADMIN_CONTACT` - balans to'ldirish uchun kontakt
-- `DATABASE_URL` - PostgreSQL connection string
-- `PG_SSL` - `true` bo'lsa SSL yoqiladi (Render tashqi ulanishlar uchun tavsiya)
-- `WEBAPP_URL` - Web mining uchun to'liq URL (masalan: Render servis URL). Render web servisida `RENDER_EXTERNAL_URL` avtomatik ishlatiladi.
-- `WEBHOOK_URL` - ixtiyoriy. Telegram webhook URL. Render web servisida `RENDER_EXTERNAL_URL/telegram/webhook` avtomatik ishlatiladi.
-  Agar `WEBHOOK_URL` faqat domen bo'lsa, bot `/telegram/webhook` ga avtomatik o'zgartiradi.
-
-## Asosiy funksiyalar
-
-- Mining: cooldown va premium rate orqali FX yig'ish
-- Referral: har bir foydalanuvchi uchun referral kod va bonus
-- Premium: FX balans evaziga premium sotib olish
-- Kino kodi: kod orqali kontent yuborish (admin orqali qo'shiladi)
-- Reyting: TOP 10 real vaqt
-- Pul chiqarish: oyning belgilangan kuni so'rov qoldirish
-- PUBG UC: UC so'rovi va admin tasdiqlashi
-
-## Admin buyruqlari
-
-- `/admin` - yordam
-- `/set <key> <value>` - sozlamani o'zgartirish
-- `/getsettings` - sozlamalar ro'yxati
-- `/withdrawals` - pending pul chiqarishlar
-- `/approve_withdraw <id>` - tasdiqlash
-- `/deny_withdraw <id>` - rad etish (FX qaytariladi)
-- `/uc_requests` - pending UC so'rovlari
-- `/approve_uc <id>` - tasdiqlash
-- `/deny_uc <id>` - rad etish (FX qaytariladi)
-- `/addmovie <code|auto> <text>` - kino kodi qo'shish (kanaldan forward qilingan xabarga reply ham bo'ladi)
-- `/delmovie <code>` - o'chirish
-- `/drop_run [force]` - TOP 10 uchun drop berish
-- `/broadcast <text>` - barcha foydalanuvchilarga xabar
-- `/stats` - statistikalar
-
-Kanal kodi bog'lash:
-Kanal xabarini botga forward qiling, so'ng o'sha xabarga reply qilib `/addmovie CODE` yoki `/addmovie auto` yuboring.
-`auto` bo'lsa kod ketma-ket raqam bilan avtomatik beriladi (1,2,3...).
-Ketma-ketlik to'g'ri bo'lishi uchun kinolarni kanal tartibida qo'shib boring.
-
-## Sozlama kalitlari (settings)
-
-Default kalitlar `config.js` ichida:
-
-- `referral_bonus`
-- `mine_amount`
-- `premium_mine_amount`
-- `mine_cooldown_seconds`
-- `payout_day`
-- `premium_cost`
-- `premium_days`
-- `drop_bonus_fx`
-- `drop_premium_days`
-- `uc_fx_rate`
-- `web_mine_cooldown_seconds` (web mining uchun cooldown, 0 bo'lsa har bosilganda ishlaydi)
-- `web_mine_amount` (web mining bosishda beriladigan FX miqdori)
-
-## Eslatma
-
-- Referral bonusi faqat yangi foydalanuvchi /start bosganda beriladi.
-- Bitta foydalanuvchi uchun 1 marta referral bonus ishlaydi.
-- Anti-multiaccount bo'yicha minimal himoya mavjud (Telegram ID asosida).
-- Kino kodi kanal xabariga ulangan bo'lsa, bot kanalda admin bo'lishi va xabarlarni ko'rishga ruxsatga ega bo'lishi kerak.
-- Kanalda "Protect content" yoqilgan bo'lsa forward ishlamaydi.
-
-## Web mining
-
-- Web sahifa `/` da servis qilinadi.
-- Bot menyusida "Web Mining" tugmasi chiqishi uchun `WEBAPP_URL` ni sozlang.
-- Telegram Web App auth tekshiruvi bor, shuning uchun web sahifani faqat bot ichidan ochish tavsiya qilinadi.
-- BotFather orqali Web App domainini `WEBAPP_URL` domeniga ruxsat bering.
-- Agar web sahifa alohida host (Netlify) bo'lsa, `WEBAPP_URL` ga `?api=BACKEND_URL` qo'shing.
-  Masalan: `https://fxvm.netlify.app/?api=https://fxvm-bot.onrender.com`
-- Render'da `RENDER_EXTERNAL_URL` mavjud bo'lsa, `?api=` avtomatik qo'shiladi.
-
-## Render deploy
-
-1. Render'da PostgreSQL database yarating.
-2. Web Service (Node) yarating.
-3. Environment variables:
+1) `npm install`
+2) Create `.env` (or copy `.env.example`) and fill:
    - `BOT_TOKEN`
-   - `ADMIN_IDS`
-   - `BOT_USERNAME` (ixtiyoriy)
-   - `ADMIN_CONTACT` (ixtiyoriy)
-   - `DATABASE_URL` (Render DB connection string)
-   - `PG_SSL=true`
-   - `WEBAPP_URL` (Render servis URL)
-4. Build Command: `npm install`
-5. Start Command: `npm start`
-6. Ixtiyoriy: `render.yaml` faylidan blueprint sifatida foydalaning.
-# fxvm-bot
+   - `DATABASE_URL`
+   - `ADMIN_IDS` (comma separated)
+   - `CHANNEL_ID` (channel numeric id, example: `-1001234567890`)
+   - `PG_SSL` (optional: true/false)
+3) `npm start`
+
+## How to add the bot to the channel
+
+1) Open the private channel settings.
+2) Add the bot as an admin.
+3) Make sure the bot can read messages (admin is enough).
+4) Post new movies with caption like `KOD: 184` or `KODI: 184`.
+
+## How to find CHANNEL_ID
+
+- Forward any channel post to @userinfobot or @getmyid_bot. The bot will show the channel id.
+- It looks like `-1001234567890`.
+
+## How it works
+
+- When a new channel post arrives, the bot parses the caption with a regex.
+- Code is unique. If the same code appears again, it updates the record.
+- Users can send `184` or `KOD: 184` to the bot and receive the post via `copyMessage`.
+
+## Admin commands
+
+- `/stats` -> how many movies are indexed
+- `/del 184` -> delete a code
+- `/set 184 <messageId>` -> manual bind for older posts in the channel
+
+## Testing
+
+1) Post a new movie in the channel with caption `KOD: 184`.
+2) Send `184` to the bot in private chat.
+3) The bot should copy the post from the channel to the user.
+
+## Structure
+
+- `src/index.js` start
+- `src/bot.js` handlers
+- `src/db.js` database
+- `src/models/Movie.js` movie model
+- `src/utils/parseCode.js` regex parser
+- `src/utils/isAdmin.js` admin check
