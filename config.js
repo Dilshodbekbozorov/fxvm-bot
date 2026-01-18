@@ -22,6 +22,7 @@ const WEBAPP_URL = process.env.WEBAPP_URL || RENDER_EXTERNAL_URL || "";
 const WEBHOOK_URL =
   process.env.WEBHOOK_URL ||
   (RENDER_EXTERNAL_URL ? `${RENDER_EXTERNAL_URL}/telegram/webhook` : "");
+const CHANNEL_ID = process.env.CHANNEL_ID || "";
 const APP_NAME = process.env.APP_NAME || "FX-VM";
 const PG_SSL = ["true", "1", "yes"].includes(
   String(process.env.PG_SSL || "").toLowerCase()
@@ -50,6 +51,7 @@ module.exports = {
   ADMIN_CONTACT,
   WEBAPP_URL,
   WEBHOOK_URL,
+  CHANNEL_ID,
   APP_NAME,
   PG_SSL,
   DEFAULT_SETTINGS,

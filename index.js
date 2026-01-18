@@ -25,6 +25,27 @@ const USE_WEBHOOK = Boolean(WEBHOOK_URL);
 const bot = new TelegramBot(config.BOT_TOKEN, { polling: false });
 
 let botUsername = config.BOT_USERNAME;
+const MOVIE_RATE_LIMIT_MAX = 5;
+const MOVIE_RATE_LIMIT_WINDOW_MS = 30 * 1000;
+const movieRateLimit = new Map();
+
+function isMovieRateLimited(userId) {
+  if (!userId) {
+    return false;
+  }
+  const key = String(userId);
+  const now = Date.now();
+  const entry = movieRateLimit.get(key);
+  if (!entry || now > entry.resetAt) {
+    movieRateLimit.set(key, {
+      count: 1,
+      resetAt: now + MOVIE_RATE_LIMIT_WINDOW_MS,
+    });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > MOVIE_RATE_LIMIT_MAX;
+}
 
 function getBackendBaseUrl() {
   if (WEBHOOK_URL) {
@@ -683,7 +704,16 @@ async function handleStateMessage(msg, user) {
       return true;
     }
     case "movie_code": {
-      const code = extractMovieCodeFromText(text) || text.trim();
+      const parsedCode = parseMovieCode(text);
+      const code = parsedCode ? String(parsedCode) : text.trim();
+      if (!isAdmin(user.id) && isMovieRateLimited(user.id)) {
+        await bot.sendMessage(
+          msg.chat.id,
+          "Limit oshdi. 30 soniyada 5 ta so'rov."
+        );
+        await db.clearUserState(user.id);
+        return true;
+      }
       const movie = await db.getMovieCode(code);
       await db.clearUserState(user.id);
       if (!movie) {
@@ -959,22 +989,33 @@ function extractMovieContentFromReply(reply) {
   return null;
 }
 
-function extractMovieCodeFromText(text) {
+function parseMovieCode(text) {
   if (!text) {
     return null;
   }
-  const match = text.match(/\b(kodi|kod)\s*[:#-]?\s*([0-9]{1,10})\b/i);
-  return match ? match[2] : null;
+  const raw = String(text);
+  const match = raw.match(/\bKODI?:\s*(\d+)\b/);
+  if (match) {
+    return Number(match[1]);
+  }
+  const trimmed = raw.trim();
+  if (/^\d+$/.test(trimmed)) {
+    return Number(trimmed);
+  }
+  return null;
 }
 
 async function syncMovieFromChannelPost(msg) {
   const text = msg.caption || msg.text || "";
-  const code = extractMovieCodeFromText(text);
-  if (!code) {
+  if (config.CHANNEL_ID && String(msg.chat.id) !== String(config.CHANNEL_ID)) {
+    return;
+  }
+  const parsedCode = parseMovieCode(text);
+  if (!parsedCode) {
     return;
   }
   await db.addMovieCode({
-    code,
+    code: String(parsedCode),
     content_type: "channel",
     content_value: "channel",
     channel_id: msg.chat.id,
@@ -994,6 +1035,7 @@ bot.onText(/\/start(?:\s+(\S+))?/, async (msg, match) => {
       await db.getSettingNumber("referral_bonus")
     )} FX.`;
   }
+  text += "\nKino kodi yuboring (masalan: 184 yoki KOD: 184).";
   await bot.sendMessage(msg.chat.id, text, MAIN_MENU_KEYBOARD);
 });
 
@@ -1038,6 +1080,7 @@ bot.onText(/\/admin/, async (msg) => {
   const text = [
     "Admin buyruqlar:",
     "/set <key> <value>",
+    "/set <code> <messageId> (movie)",
     "/getsettings",
     "/withdrawals",
     "/approve_withdraw <id>",
@@ -1046,6 +1089,7 @@ bot.onText(/\/admin/, async (msg) => {
     "/approve_uc <id>",
     "/deny_uc <id>",
     "/addmovie <code|auto> [text] (yoki kanal forwardiga reply)",
+    "/del <code> (movie)",
     "/delmovie <code>",
     "/drop_run [force]",
     "/broadcast <text>",
@@ -1059,10 +1103,38 @@ bot.onText(/\/set\s+(\S+)\s+(.+)/, async (msg, match) => {
     await bot.sendMessage(msg.chat.id, "Ruxsat yo'q.");
     return;
   }
-  const key = match[1];
-  const value = match[2];
-  await db.setSetting(key, value);
-  await bot.sendMessage(msg.chat.id, `Sozlama saqlandi: ${key} = ${value}`);
+  try {
+    const key = match[1];
+    const value = match[2].trim();
+    const numericKey = /^\d+$/.test(key) ? Number(key) : null;
+    const numericValue = /^\d+$/.test(value) ? Number(value) : null;
+
+    if (numericKey && numericValue) {
+      if (!config.CHANNEL_ID) {
+        await bot.sendMessage(msg.chat.id, "CHANNEL_ID sozlanmagan.");
+        return;
+      }
+      await db.addMovieCode({
+        code: String(numericKey),
+        content_type: "channel",
+        content_value: "channel",
+        channel_id: config.CHANNEL_ID,
+        channel_message_id: numericValue,
+        added_by: msg.from.id,
+      });
+      await bot.sendMessage(
+        msg.chat.id,
+        `Kino kodi bog'landi: ${numericKey} -> ${numericValue}`
+      );
+      return;
+    }
+
+    await db.setSetting(key, value);
+    await bot.sendMessage(msg.chat.id, `Sozlama saqlandi: ${key} = ${value}`);
+  } catch (err) {
+    console.error("Set command error:", err);
+    await bot.sendMessage(msg.chat.id, "Xatolik yuz berdi. Qayta urinib ko'ring.");
+  }
 });
 
 bot.onText(/\/getsettings/, async (msg) => {
@@ -1196,7 +1268,8 @@ bot.onText(/\/addmovie(?:\s+(\S+))?(?:\s+([\s\S]+))?/, async (msg, match) => {
 
   if (!code && msg.reply_to_message) {
     const caption = msg.reply_to_message.caption || msg.reply_to_message.text;
-    code = extractMovieCodeFromText(caption || "") || "";
+    const parsedCode = parseMovieCode(caption || "");
+    code = parsedCode ? String(parsedCode) : "";
   }
 
   if (!code) {
@@ -1212,6 +1285,25 @@ bot.onText(/\/addmovie(?:\s+(\S+))?(?:\s+([\s\S]+))?/, async (msg, match) => {
     added_by: msg.from.id,
   });
   await bot.sendMessage(msg.chat.id, `Kino kodi saqlandi: ${code}`);
+});
+
+bot.onText(/\/del\s+(\d+)/, async (msg, match) => {
+  if (!isAdmin(msg.from.id)) {
+    await bot.sendMessage(msg.chat.id, "Ruxsat yo'q.");
+    return;
+  }
+  try {
+    const code = match[1];
+    const removed = await db.deleteMovieCode(code);
+    if (removed) {
+      await bot.sendMessage(msg.chat.id, `Kino kodi o'chirildi: ${code}`);
+    } else {
+      await bot.sendMessage(msg.chat.id, "Bunday kod topilmadi.");
+    }
+  } catch (err) {
+    console.error("Del movie error:", err);
+    await bot.sendMessage(msg.chat.id, "Xatolik yuz berdi. Qayta urinib ko'ring.");
+  }
 });
 
 bot.onText(/\/delmovie\s+(\S+)/, async (msg, match) => {
@@ -1300,11 +1392,13 @@ bot.onText(/\/stats/, async (msg) => {
     return;
   }
   const stats = await db.getStats();
+  const movieCount = await db.getMovieCount();
   const pendingWithdraw = await db.getPendingWithdrawRequests();
   const pendingUc = await db.getPendingUcRequests();
   const text = [
     `Foydalanuvchilar: ${stats.user_count}`,
     `Jami FX: ${formatNumber(stats.total_fx)}`,
+    `Kino indeks: ${movieCount}`,
     `Pending withdraw: ${pendingWithdraw.length}`,
     `Pending UC: ${pendingUc.length}`,
   ].join("\n");
@@ -1343,6 +1437,29 @@ bot.on("message", async (msg) => {
 
   const text = msg.text.trim();
   const chatId = msg.chat.id;
+
+  const codeValue = parseMovieCode(text);
+  if (codeValue && msg.chat.type === "private") {
+    if (!isAdmin(user.id) && isMovieRateLimited(user.id)) {
+      await bot.sendMessage(
+        chatId,
+        "Limit oshdi. 30 soniyada 5 ta so'rov."
+      );
+      return;
+    }
+    try {
+      const movie = await db.getMovieCode(String(codeValue));
+      if (!movie) {
+        await bot.sendMessage(chatId, "Bunday kod topilmadi.");
+        return;
+      }
+      await sendMovieContent(chatId, movie);
+    } catch (err) {
+      console.error("Movie code lookup error:", err);
+      await bot.sendMessage(chatId, "Xatolik yuz berdi. Qayta urinib ko'ring.");
+    }
+    return;
+  }
 
   switch (text) {
     case "Profil":

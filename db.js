@@ -385,11 +385,17 @@ async function addMovieCode({
 }
 
 async function deleteMovieCode(code) {
-  await run(`DELETE FROM movie_codes WHERE code = $1`, [code]);
+  const result = await run(`DELETE FROM movie_codes WHERE code = $1`, [code]);
+  return result.rowCount || 0;
 }
 
 async function getMovieCode(code) {
   return get(`SELECT * FROM movie_codes WHERE code = $1`, [code]);
+}
+
+async function getMovieCount() {
+  const row = await get(`SELECT COUNT(*)::int AS count FROM movie_codes`);
+  return row ? Number(row.count) : 0;
 }
 
 async function getNextMovieCode() {
@@ -452,6 +458,7 @@ module.exports = {
   addMovieCode,
   deleteMovieCode,
   getMovieCode,
+  getMovieCount,
   getNextMovieCode,
   addDropRecord,
   getDropRecord,
